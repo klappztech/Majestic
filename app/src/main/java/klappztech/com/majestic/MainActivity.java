@@ -29,6 +29,8 @@ public class MainActivity extends AppCompatActivity {
     DataBaseHelper myDbHelper;
     private int selected_count=0;
 
+    TextView txtPlatform,txtBus1, txtBus2,txtBus3,txtBus4,txtBus5;
+
     CustomAutoCompleteView myAutoComplete;
 
     // adapter for auto-complete
@@ -45,7 +47,7 @@ public class MainActivity extends AppCompatActivity {
         initDB();
         openDB();
 
-        populateListViewFromDB();
+
 
         // autocompletetextview is in activity_main.xml
         myAutoComplete = (CustomAutoCompleteView) findViewById(R.id.myautocomplete);
@@ -55,13 +57,39 @@ public class MainActivity extends AppCompatActivity {
         myAutoComplete.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                Toast.makeText(getApplicationContext(), "id clicked: " + id, Toast.LENGTH_SHORT).show();
+
+                //String selected_bus = (String) parent.getItemAtPosition(position);
+                TextView txtBus = (TextView) view;
+
+                String selected_bus = txtBus.getText().toString();
+
+                Toast.makeText(getApplicationContext(), "id value: " +selected_bus , Toast.LENGTH_SHORT).show();
+                txtPlatform = (TextView) findViewById(R.id.textPlatform);
+
+
+                String platform = getPlatFromFromBus(selected_bus);
+                txtPlatform.setText(platform);
+
+                populateListViewFromDB(platform);
+
             }
         });
 
         // set our adapter
         myAdapter = new ArrayAdapter<String>(this, android.R.layout.simple_dropdown_item_1line, item);
         myAutoComplete.setAdapter(myAdapter);
+    }
+
+    public String getPlatFromFromBus(String selected_bus) {
+        String pf = null;
+        Cursor c = 	myDbHelper.myDataBase.query(true, DATABASE_TABLE, ALL_KEYS,
+                KEY_BUS_NUM+"='"+selected_bus+"'" , null, null, null, null, null);
+        if (c != null) {
+            c.moveToFirst();
+        }
+        pf = c.getString(c.getColumnIndex(KEY_PLAT));
+
+        return pf;
     }
 
     private void openDB() {
@@ -103,14 +131,24 @@ public class MainActivity extends AppCompatActivity {
         return c;
     }
 
-    public void populateListViewFromDB() {
+    public Cursor getAllRowsWhere(String where) {
+        //where = null;
+        Cursor c = 	myDbHelper.myDataBase.query(true, DATABASE_TABLE, ALL_KEYS,
+                where, null, null, null, null, null);
+        if (c != null) {
+            c.moveToFirst();
+        }
+        return c;
+    }
+
+    public void populateListViewFromDB(String platform_no) {
         // Set the adapter for the list view
         final ListView myList = (ListView) findViewById(R.id.listView);
-        View empty = findViewById(R.id.textView);
+        View empty = findViewById(R.id.emptyView);
 
         myList.setEmptyView(empty);
 
-        Cursor cursor = getAllRows();
+        Cursor cursor = getAllRowsWhere(KEY_PLAT+" = '"+platform_no+"'");
 
         // Allow activity to manage lifetime of the cursor.
         // DEPRECATED! Runs on the UI thread, OK for small/short queries.
@@ -118,7 +156,7 @@ public class MainActivity extends AppCompatActivity {
 
         // Setup mapping from cursor to view fields:
         String[] fromFieldNames = new String[]
-                {KEY_BUS_NUM, KEY_PLAT};
+                {KEY_BUS_NUM, KEY_DEST};
         int[] toViewIDs = new int[]
                 {R.id.item_name, R.id.item_otp};
 
