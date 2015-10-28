@@ -22,7 +22,8 @@
         android:text="BUS No"
         android:layout_alignParentTop="true"
         android:layout_alignParentLeft="true"
-        android:layout_alignParentStart="true" />
+        android:layout_alignParentStart="true"
+        style="@style/bold"/>
 
 
     <TextView
@@ -35,6 +36,7 @@
         android:layout_alignParentRight="true"
         android:layout_alignParentEnd="true"
         android:layout_toEndOf="@+id/item_name"
-        android:layout_toRightOf="@+id/item_name" />
+        android:layout_toRightOf="@+id/item_name"
+       />
 
 </RelativeLayout>

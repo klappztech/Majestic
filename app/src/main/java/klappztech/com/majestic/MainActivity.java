@@ -1,8 +1,20 @@
 package klappztech.com.majestic;
 
+/*
+xlarge (xhdpi): 640x960
+large (hdpi): 480x800
+medium (mdpi): 320x480
+small (ldpi): 240x320
+ */
+import android.content.DialogInterface;
 import android.database.Cursor;
 import android.database.SQLException;
 import android.database.sqlite.SQLiteDatabase;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
+import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.view.ActionMode;
@@ -10,9 +22,17 @@ import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.ViewGroup;
+import android.view.Window;
+import android.view.animation.Animation;
+import android.view.animation.RotateAnimation;
 import android.widget.AbsListView;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
+import android.widget.Button;
+import android.widget.ImageButton;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.SimpleCursorAdapter;
 import android.widget.TextView;
@@ -21,7 +41,7 @@ import android.widget.Toast;
 import java.io.IOException;
 import java.util.List;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements SensorEventListener {
 
     private static final String KEY_ROWID = "_id", DATABASE_TABLE = "routes_table" ;
     public static final String KEY_BUS_NUM = "bus_no",KEY_DEST = "dest",KEY_PLAT = "platform";
@@ -29,29 +49,40 @@ public class MainActivity extends AppCompatActivity {
     DataBaseHelper myDbHelper;
     private int selected_count=0;
 
-    TextView txtPlatform,txtBus1, txtBus2,txtBus3,txtBus4,txtBus5;
+    TextView txtPlatform,txtPlatform2;
+    ImageButton toggleShow;
+
+    boolean isMaximized = true;
+
+    // define the display assembly compass picture
+    private ImageView image;
+
 
     CustomAutoCompleteView myAutoComplete;
 
     // adapter for auto-complete
     ArrayAdapter<String> myAdapter;
-    // just to add some initial value
+    // just to add some initial value0
     String[] item = new String[] {"Please search..."};
+    private float currentDegree = 0f;
+    private SensorManager mSensorManager;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        toggleView(false);
         
         // database
         initDB();
         openDB();
+        registerListClickCallback();
 
-
-
+        //VIEW
         // autocompletetextview is in activity_main.xml
         myAutoComplete = (CustomAutoCompleteView) findViewById(R.id.myautocomplete);
-
+        toggleShow = (ImageButton) findViewById(R.id.button);
         // add the listener so it will tries to suggest while the user types
         myAutoComplete.addTextChangedListener(new CustomAutoCompleteTextChangedListener(this));
         myAutoComplete.setOnItemClickListener(new AdapterView.OnItemClickListener() {
@@ -63,13 +94,16 @@ public class MainActivity extends AppCompatActivity {
 
                 String selected_bus = txtBus.getText().toString();
 
-                Toast.makeText(getApplicationContext(), "id value: " +selected_bus , Toast.LENGTH_SHORT).show();
+                //Toast.makeText(getApplicationContext(), "id value: " + selected_bus, Toast.LENGTH_SHORT).show();
                 txtPlatform = (TextView) findViewById(R.id.textPlatform);
+                txtPlatform2 = (TextView) findViewById(R.id.textViewPF2);
 
 
                 String platform = getPlatFromFromBus(selected_bus);
                 txtPlatform.setText(platform);
+                txtPlatform2.setText(platform);
 
+                toggleView(true);
                 populateListViewFromDB(platform);
 
             }
@@ -78,6 +112,155 @@ public class MainActivity extends AppCompatActivity {
         // set our adapter
         myAdapter = new ArrayAdapter<String>(this, android.R.layout.simple_dropdown_item_1line, item);
         myAutoComplete.setAdapter(myAdapter);
+
+        //
+        image = (ImageView) findViewById(R.id.imageView);
+        // initialize your android device sensor capabilities
+        mSensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
+
+        //button onclicklisterenters
+        toggleShow.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                //load bookmarks
+
+                toggleView(isMaximized = !isMaximized);
+
+
+            }
+        });
+    }
+
+    private void toggleView(boolean isVisible) {
+
+        ListView LV = (ListView) findViewById(R.id.listView);
+        TextView PF = (TextView) findViewById(R.id.textPlatform);
+        TextView PF1 = (TextView) findViewById(R.id.textViewPF1);
+        TextView PF2 = (TextView) findViewById(R.id.textViewPF2);
+        ImageButton togglebtn = (ImageButton) findViewById(R.id.button);
+
+        LinearLayout yellowBox = (LinearLayout) findViewById(R.id.yellowBox);
+
+
+        if(!isVisible)  {
+            LV.setVisibility(View.GONE);
+            PF.setVisibility(View.GONE);
+            PF2.setVisibility(View.VISIBLE);
+
+            PF1.setVisibility(View.GONE);
+            ViewGroup.LayoutParams params = PF1.getLayoutParams();
+            params.width = ViewGroup.LayoutParams.WRAP_CONTENT;
+            PF1.setLayoutParams(params);
+
+            togglebtn.setBackgroundResource(R.drawable.down);
+
+        }  else  {
+            LV.setVisibility(View.VISIBLE);
+            PF.setVisibility(View.VISIBLE);
+            PF2.setVisibility(View.GONE);
+
+            PF1.setVisibility(View.VISIBLE);
+            PF1.setText("PLATFORM");
+            ViewGroup.LayoutParams params = PF1.getLayoutParams();
+            params.width = ViewGroup.LayoutParams.FILL_PARENT;
+            PF1.setLayoutParams(params);
+
+            togglebtn.setBackgroundResource(R.drawable.up);
+        }
+
+        if(PF2.getText() =="")  {
+            yellowBox.setVisibility(View.INVISIBLE);
+        } else  {
+            yellowBox.setVisibility(View.VISIBLE);
+        }
+
+
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+        // for the system's orientation sensor registered listeners
+        mSensorManager.registerListener(this, mSensorManager.getDefaultSensor(Sensor.TYPE_ORIENTATION),
+                SensorManager.SENSOR_DELAY_GAME);
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+
+        // to stop the listener and save battery
+        mSensorManager.unregisterListener(this);
+    }
+
+    private void registerListClickCallback() {
+        ListView myList = (ListView) findViewById(R.id.listView);
+        myList.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> parent, View viewClicked,
+                                    int position, long idInDB) {
+                //Toast.makeText(getApplicationContext(), "Clicked on Item:" + idInDB, Toast.LENGTH_SHORT).show();
+                ActionOnClick(idInDB);
+            }
+        });
+    }
+
+    private void ActionOnClick(long idInDB) {
+
+        String bus = null, route=null;
+        Cursor c = 	myDbHelper.myDataBase.query(true, DATABASE_TABLE, ALL_KEYS,
+                KEY_ROWID+"='"+idInDB+"'" , null, null, null, null, null);
+        if (c != null) {
+            c.moveToFirst();
+        }
+        bus = c.getString(c.getColumnIndex(KEY_BUS_NUM));
+        route = c.getString(c.getColumnIndex(KEY_DEST));
+
+        //Toast.makeText(getApplicationContext(), bus + "\n"+route, Toast.LENGTH_SHORT).show();
+
+        AlertDialog alertDialog = new AlertDialog.Builder(MainActivity.this).create();
+        alertDialog.setTitle("Bus # "+bus);
+        alertDialog.setMessage(route);
+        alertDialog.setButton(AlertDialog.BUTTON_NEUTRAL, "OK",
+                new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int which) {
+                        dialog.dismiss();
+                    }
+                });
+        alertDialog.show();
+
+
+    }
+
+    @Override
+    public void onSensorChanged(SensorEvent event) {
+
+        // get the angle around the z-axis rotated
+        float degree = Math.round(event.values[0]);
+
+        // create a rotation animation (reverse turn degree degrees)
+        RotateAnimation ra = new RotateAnimation(
+                currentDegree,
+                -degree,
+                Animation.RELATIVE_TO_SELF, 0.5f,
+                Animation.RELATIVE_TO_SELF,
+                0.5f);
+
+        // how long the animation will take place
+        ra.setDuration(210);
+
+        // set the animation after the end of the reservation status
+        ra.setFillAfter(true);
+
+        // Start the animation
+        image.startAnimation(ra);
+        currentDegree = -degree;
+
+    }
+
+    @Override
+    public void onAccuracyChanged(Sensor sensor, int accuracy) {
+        // not in use
     }
 
     public String getPlatFromFromBus(String selected_bus) {
@@ -193,6 +376,8 @@ public class MainActivity extends AppCompatActivity {
 
         return item;
     }
+
+
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
